@@ -33,7 +33,7 @@ To iterate on layout: edit the composition in `server/` (e.g. `Routes.kt`) and r
 
 ## Why a script and not a pre-baked scaffold
 
-The Gradle/Android scaffolding isn't checked in on purpose — Compose Remote is `1.0.0-alpha05`, Ktor and AGP move on their own schedules, and pinned templates rot fast. `bootstrap.sh` drives the upstream generators ([start.ktor.io](https://start.ktor.io), Android Studio's New Project flow) so you get current versions, then verifies the result.
+The Gradle/Android scaffolding isn't checked in on purpose. Compose Remote is `1.0.0-alpha05`, Ktor and AGP move on their own schedules, and pinned templates rot fast. `bootstrap.sh` drives the upstream generators ([start.ktor.io](https://start.ktor.io), Android Studio's New Project flow) so you get current versions, then verifies the result.
 
 After scaffolding, add the AndroidX Compose Remote dependencies per the [release notes](https://developer.android.com/jetpack/androidx/releases/compose-remote).
 

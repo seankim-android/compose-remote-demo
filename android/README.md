@@ -17,8 +17,8 @@ For a physical device on the same network, set `BASE_URL` to your machine's LAN 
 
 ## Structure (planned)
 
-- `MainActivity` — entry point, Compose theme, navigation host.
-- `RemoteScreen` — Composable that fetches a remote composition and hands it to the Compose Remote player.
-- `network/` — Ktor client wired to the server.
+- `MainActivity`: entry point, Compose theme, navigation host.
+- `RemoteScreen`: Composable that fetches a remote composition and hands it to the Compose Remote player.
+- `network/`: Ktor client wired to the server.
 
 Update this section once the code exists.
