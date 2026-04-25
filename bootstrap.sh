@@ -19,6 +19,39 @@ ask() {
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# Look for Android Studio in the usual macOS spots, including JetBrains Toolbox.
+find_studio() {
+  local candidates=(
+    "$HOME/Applications/Android Studio.app"
+    "/Applications/Android Studio.app"
+    "$HOME/Applications/JetBrains Toolbox/Android Studio.app"
+  )
+  # Toolbox versioned installs: ~/Library/Application Support/JetBrains/Toolbox/apps/AndroidStudio/...
+  local toolbox="$HOME/Library/Application Support/JetBrains/Toolbox/apps"
+  if [ -d "$toolbox" ]; then
+    while IFS= read -r p; do candidates+=("$p"); done < <(find "$toolbox" -maxdepth 5 -name "Android Studio*.app" 2>/dev/null)
+  fi
+  for c in "${candidates[@]}"; do
+    [ -d "$c" ] && { echo "$c"; return 0; }
+  done
+  return 1
+}
+
+# adb usually lives under the Android SDK, not on PATH.
+find_adb() {
+  have adb && { command -v adb; return 0; }
+  local sdk_candidates=(
+    "${ANDROID_HOME:-}"
+    "${ANDROID_SDK_ROOT:-}"
+    "$HOME/Library/Android/sdk"
+    "$HOME/Android/Sdk"
+  )
+  for s in "${sdk_candidates[@]}"; do
+    [ -n "$s" ] && [ -x "$s/platform-tools/adb" ] && { echo "$s/platform-tools/adb"; return 0; }
+  done
+  return 1
+}
+
 check_prereqs() {
   local missing=()
   have java || missing+=("java (JDK 17+)")
@@ -28,8 +61,6 @@ check_prereqs() {
     echo "Install those first, then re-run."
     exit 1
   fi
-  have adb     || echo "note: adb not on PATH. Fine for now; you'll want it for the Android side."
-  have studio  || true
 }
 
 cmd_init() {
@@ -56,8 +87,23 @@ EOF
   echo "   Unzip into ./server/ (so server/build.gradle.kts exists)."
   echo
   echo "2) Generate the Android app."
-  echo "   Android Studio → New Project → Empty Activity (Compose) → location: ./android/"
-  echo "   Use package: $pkg"
+  if studio=$(find_studio); then
+    echo "   Found Android Studio: $studio"
+    echo "   New Project → Empty Activity (Compose) → location: $ROOT/android/  (package: $pkg)"
+    reply=$(ask "   Open Android Studio now? (y/N)" "n")
+    case "$reply" in
+      y|Y|yes) open -a "$studio" "$ROOT/android" ;;
+    esac
+  else
+    echo "   Android Studio → New Project → Empty Activity (Compose) → location: ./android/"
+    echo "   Use package: $pkg"
+  fi
+
+  if adb_path=$(find_adb); then
+    echo
+    echo "(adb found at $adb_path)"
+  fi
+
   echo
   echo "When both are in place, run: ./bootstrap.sh verify"
 }
