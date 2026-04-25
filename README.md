@@ -21,11 +21,11 @@ The template (`server/`, `android/`, `shared/`) is what you fork or copy. `sampl
 ## Quick start
 
 ```bash
-./bootstrap.sh init     # asks a couple questions, points you at the generators
-# (run the Ktor + Android Studio steps it prints)
-./bootstrap.sh verify   # checks both sides are scaffolded
-./bootstrap.sh run-server
+./bootstrap.sh             # one-shot: prompts, opens generators, watches for scaffolding, verifies
+./bootstrap.sh run-server  # once verified
 ```
+
+Subcommands: `init` (just prompts), `verify`, `run-server`, `all` (default).
 
 Then open `android/` in Android Studio and Run. The app hits the server at `http://10.0.2.2:8080` from the emulator.
 

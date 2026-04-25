@@ -9,24 +9,26 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$ROOT/.bootstrap.env"
 
-cmd="${1:-init}"
+cmd="${1:-all}"
 
 ask() {
-  local prompt="$1" default="$2" var
-  read -r -p "$prompt [$default]: " var || true
+  local prompt="$1" default="$2" var=""
+  if [ -t 0 ]; then
+    read -r -p "$prompt [$default]: " var || true
+  else
+    { read -r -p "$prompt [$default]: " var </dev/tty; } 2>/dev/null || true
+  fi
   echo "${var:-$default}"
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# Look for Android Studio in the usual macOS spots, including JetBrains Toolbox.
 find_studio() {
   local candidates=(
     "$HOME/Applications/Android Studio.app"
     "/Applications/Android Studio.app"
     "$HOME/Applications/JetBrains Toolbox/Android Studio.app"
   )
-  # Toolbox versioned installs: ~/Library/Application Support/JetBrains/Toolbox/apps/AndroidStudio/...
   local toolbox="$HOME/Library/Application Support/JetBrains/Toolbox/apps"
   if [ -d "$toolbox" ]; then
     while IFS= read -r p; do candidates+=("$p"); done < <(find "$toolbox" -maxdepth 5 -name "Android Studio*.app" 2>/dev/null)
@@ -37,14 +39,11 @@ find_studio() {
   return 1
 }
 
-# adb usually lives under the Android SDK, not on PATH.
 find_adb() {
   have adb && { command -v adb; return 0; }
   local sdk_candidates=(
-    "${ANDROID_HOME:-}"
-    "${ANDROID_SDK_ROOT:-}"
-    "$HOME/Library/Android/sdk"
-    "$HOME/Android/Sdk"
+    "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}"
+    "$HOME/Library/Android/sdk" "$HOME/Android/Sdk"
   )
   for s in "${sdk_candidates[@]}"; do
     [ -n "$s" ] && [ -x "$s/platform-tools/adb" ] && { echo "$s/platform-tools/adb"; return 0; }
@@ -58,54 +57,59 @@ check_prereqs() {
   have curl || missing+=("curl")
   if [ ${#missing[@]} -gt 0 ]; then
     echo "Missing: ${missing[*]}"
-    echo "Install those first, then re-run."
     exit 1
+  fi
+}
+
+server_ready() { [ -f "$ROOT/server/build.gradle.kts" ] || [ -f "$ROOT/server/build.gradle" ]; }
+android_ready() { [ -d "$ROOT/android/app" ] || [ -f "$ROOT/android/settings.gradle.kts" ] || [ -f "$ROOT/android/settings.gradle" ]; }
+
+ktor_url() { echo "https://start.ktor.io/?name=server&package=$1"; }
+
+open_url() {
+  if have open; then open "$1"
+  elif have xdg-open; then xdg-open "$1" >/dev/null 2>&1 || true
   fi
 }
 
 cmd_init() {
   check_prereqs
 
-  echo "Let's pick a few defaults. You can change them later."
-  pkg=$(ask "Android/server package" "com.example.composeremote")
-  port=$(ask "Server port" "8080")
-  emu_host=$(ask "Server host as seen from the emulator" "10.0.2.2")
+  echo "Pick a few defaults (Enter to accept):"
+  pkg=$(ask "  package" "com.example.composeremote")
+  port=$(ask "  server port" "8080")
+  emu_host=$(ask "  server host from emulator" "10.0.2.2")
 
   cat > "$ENV_FILE" <<EOF
 PACKAGE=$pkg
 PORT=$port
 EMU_HOST=$emu_host
 EOF
-  echo "Wrote $ENV_FILE"
+  echo "wrote $ENV_FILE"
+}
 
-  echo
-  echo "Next, two things this script can't do for you:"
-  echo
-  echo "1) Generate the Ktor server."
-  echo "   Open: https://start.ktor.io/?name=server&package=$pkg"
-  echo "   Plugins: Routing, ContentNegotiation, kotlinx.serialization"
-  echo "   Unzip into ./server/ (so server/build.gradle.kts exists)."
-  echo
-  echo "2) Generate the Android app."
-  if studio=$(find_studio); then
-    echo "   Found Android Studio: $studio"
-    echo "   New Project → Empty Activity (Compose) → location: $ROOT/android/  (package: $pkg)"
-    reply=$(ask "   Open Android Studio now? (y/N)" "n")
-    case "$reply" in
-      y|Y|yes) open -a "$studio" "$ROOT/android" ;;
-    esac
-  else
-    echo "   Android Studio → New Project → Empty Activity (Compose) → location: ./android/"
-    echo "   Use package: $pkg"
-  fi
+print_steps() {
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  cat <<EOF
 
-  if adb_path=$(find_adb); then
-    echo
-    echo "(adb found at $adb_path)"
-  fi
+Step 1 — generate the Ktor server (Routing, ContentNegotiation, kotlinx.serialization):
 
-  echo
-  echo "When both are in place, run: ./bootstrap.sh verify"
+    open "$(ktor_url "$PACKAGE")"
+    # download → unzip into ./server/
+
+Step 2 — generate the Android app:
+
+    Android Studio → New Project → Empty Activity (Compose)
+      Location: $ROOT/android
+      Package:  $PACKAGE
+
+Step 3 — verify and run:
+
+    ./bootstrap.sh verify
+    ./bootstrap.sh run-server
+
+EOF
 }
 
 cmd_verify() {
@@ -113,39 +117,70 @@ cmd_verify() {
   # shellcheck disable=SC1090
   . "$ENV_FILE"
 
-  fail=0
-  if [ ! -f "$ROOT/server/build.gradle.kts" ] && [ ! -f "$ROOT/server/build.gradle" ]; then
-    echo "✗ server/ has no Gradle build. Drop the Ktor generator output here."
-    fail=1
-  else
-    echo "✓ server/ looks scaffolded"
-  fi
-
-  if [ ! -d "$ROOT/android/app" ] && [ ! -f "$ROOT/android/settings.gradle.kts" ] && [ ! -f "$ROOT/android/settings.gradle" ]; then
-    echo "✗ android/ doesn't look like an Android Studio project yet."
-    fail=1
-  else
-    echo "✓ android/ looks scaffolded"
-  fi
-
+  local fail=0
+  if server_ready; then echo "✓ server/ scaffolded"; else echo "✗ server/ missing Gradle build (drop Ktor output here)"; fail=1; fi
+  if android_ready; then echo "✓ android/ scaffolded"; else echo "✗ android/ not an Android Studio project yet"; fail=1; fi
   [ $fail -eq 0 ] || exit 1
 
-  echo
-  echo "All set. To run the server:"
-  echo "  cd server && ./gradlew run"
-  echo
-  echo "Then open ./android in Android Studio and hit Run."
-  echo "The app will hit http://$EMU_HOST:$PORT from the emulator."
+  cat <<EOF
+
+All set. App will hit http://$EMU_HOST:$PORT from the emulator.
+Run the server:  ./bootstrap.sh run-server
+EOF
 }
 
 cmd_run_server() {
-  [ -f "$ROOT/server/build.gradle.kts" ] || { echo "server/ not scaffolded yet"; exit 1; }
+  server_ready || { echo "server/ not scaffolded yet — run ./bootstrap.sh verify"; exit 1; }
   cd "$ROOT/server" && ./gradlew run
 }
 
+# One-shot: init + open generators + poll until both sides are scaffolded.
+cmd_all() {
+  cmd_init
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+
+  echo
+  if server_ready; then
+    echo "✓ server/ already scaffolded, skipping Ktor generator"
+  else
+    echo "Opening Ktor generator..."
+    open_url "$(ktor_url "$PACKAGE")"
+  fi
+
+  if android_ready; then
+    echo "✓ android/ already scaffolded, skipping Studio"
+  else
+    if studio=$(find_studio); then
+      reply=$(ask "Open Android Studio on $ROOT/android now? (Y/n)" "y")
+      case "$reply" in n|N|no) ;; *) mkdir -p "$ROOT/android" && open -a "$studio" "$ROOT/android" ;; esac
+    else
+      echo "Android Studio not found. Open it manually and create an Empty Activity (Compose) project at:"
+      echo "  $ROOT/android  (package: $PACKAGE)"
+    fi
+  fi
+
+  print_steps
+
+  if [ "${BOOTSTRAP_NOWAIT:-}" = "1" ]; then return 0; fi
+
+  echo "Watching for scaffolding to land (Ctrl-C to stop)..."
+  local s_done=0 a_done=0
+  while [ $s_done -eq 0 ] || [ $a_done -eq 0 ]; do
+    if [ $s_done -eq 0 ] && server_ready; then echo "✓ server/ ready"; s_done=1; fi
+    if [ $a_done -eq 0 ] && android_ready; then echo "✓ android/ ready"; a_done=1; fi
+    [ $s_done -eq 1 ] && [ $a_done -eq 1 ] && break
+    sleep 3
+  done
+
+  echo
+  cmd_verify
+}
+
 case "$cmd" in
-  init)        cmd_init ;;
+  all)         cmd_all ;;
+  init)        cmd_init && print_steps ;;
   verify)      cmd_verify ;;
   run-server)  cmd_run_server ;;
-  *) echo "usage: $0 [init|verify|run-server]"; exit 1 ;;
+  *) echo "usage: $0 [all|init|verify|run-server]"; exit 1 ;;
 esac
