@@ -1,6 +1,6 @@
 # compose-remote-starter
 
-A starter for experimenting with [Jetpack Compose Remote](https://developer.android.com/jetpack/androidx/releases/compose-remote): a tiny server that emits a remote composition, an Android host app that renders it, and a basic hot-reload loop so you can iterate on layout without rebuilding the app.
+A starter for poking at [Jetpack Compose Remote](https://developer.android.com/jetpack/androidx/releases/compose-remote). Tiny Ktor server emits a remote composition, an Android app fetches and renders it, and you can edit the layout server-side without rebuilding the client.
 
 > Status: **scaffold**. Compose Remote is at `1.0.0-alpha05`. APIs will move. This repo will move with them.
 
@@ -39,9 +39,9 @@ After scaffolding, add the AndroidX Compose Remote dependencies per the [release
 
 ## Why this exists
 
-Most existing SSUI playbooks lean on a JSON schema and a custom renderer per platform. Compose Remote skips the renderer: the server emits Compose UI, the Compose runtime on the client renders it. This repo is a place to feel out what that actually looks like in practice.
+Most server-driven UI setups ship a JSON schema and a hand-written renderer per platform. Compose Remote drops the renderer: the server emits Compose UI, the Compose runtime on the device renders it. I wanted somewhere to actually try that and see where it falls over.
 
-Companion blog post: _Compose Remote: rethinking Server-Driven UI on Android_ (link TBD).
+More background: [Compose Remote: rethinking Server-Driven UI on Android](https://seankim.dev/blog/compose-remote-rethinking-server-driven-ui-on-android/).
 
 ## License
 
