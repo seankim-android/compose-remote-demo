@@ -88,28 +88,49 @@ EOF
   echo "wrote $ENV_FILE"
 }
 
-print_steps() {
-  # shellcheck disable=SC1090
-  . "$ENV_FILE"
+step_server() {
   cat <<EOF
 
-Step 1 — generate the Ktor server (Routing, ContentNegotiation, kotlinx.serialization):
+──────────────────────────────────────────────
+Step 1 of 2: generate the Ktor server
+──────────────────────────────────────────────
+On the page that just opened (start.ktor.io):
 
-    open "$(ktor_url "$PACKAGE")"
-    # download → unzip into ./server/
-
-Step 2 — generate the Android app:
-
-    Android Studio → New Project → Empty Activity (Compose)
-      Location: $ROOT/android
-      Package:  $PACKAGE
-
-Step 3 — verify and run:
-
-    ./bootstrap.sh verify
-    ./bootstrap.sh run-server
+  1. Project name: server
+  2. Package:      $PACKAGE
+  3. Add plugins:  Routing, ContentNegotiation, kotlinx.serialization
+  4. Click "Download" → you get a zip.
+  5. Unzip its contents into:
+       $ROOT/server/
+     so that this file exists:
+       $ROOT/server/build.gradle.kts
 
 EOF
+}
+
+step_android() {
+  cat <<EOF
+
+──────────────────────────────────────────────
+Step 2 of 2: generate the Android app
+──────────────────────────────────────────────
+In Android Studio:
+
+  1. New Project → "Empty Activity" (the Compose one)
+  2. Package:  $PACKAGE
+  3. Save location:
+       $ROOT/android
+     (overwrite/use existing folder if prompted)
+  4. Let Gradle sync finish.
+
+EOF
+}
+
+wait_for() {
+  local label="$1" check="$2"
+  echo "Waiting for $label to appear (Ctrl-C to stop)..."
+  while ! eval "$check"; do sleep 3; done
+  echo "✓ $label ready"
 }
 
 cmd_verify() {
@@ -134,44 +155,33 @@ cmd_run_server() {
   cd "$ROOT/server" && ./gradlew run
 }
 
-# One-shot: init + open generators + poll until both sides are scaffolded.
+# One-shot: init + walk both generator steps in order + verify.
 cmd_all() {
   cmd_init
   # shellcheck disable=SC1090
   . "$ENV_FILE"
 
-  echo
   if server_ready; then
-    echo "✓ server/ already scaffolded, skipping Ktor generator"
+    echo "✓ server/ already scaffolded, skipping Ktor step"
   else
-    echo "Opening Ktor generator..."
+    step_server
+    echo "Opening start.ktor.io in your browser..."
     open_url "$(ktor_url "$PACKAGE")"
+    [ "${BOOTSTRAP_NOWAIT:-}" = "1" ] || wait_for "server/" "server_ready"
   fi
 
   if android_ready; then
-    echo "✓ android/ already scaffolded, skipping Studio"
+    echo "✓ android/ already scaffolded, skipping Studio step"
   else
+    step_android
     if studio=$(find_studio); then
-      reply=$(ask "Open Android Studio on $ROOT/android now? (Y/n)" "y")
+      reply=$(ask "Open Android Studio now? (Y/n)" "y")
       case "$reply" in n|N|no) ;; *) mkdir -p "$ROOT/android" && open -a "$studio" "$ROOT/android" ;; esac
     else
-      echo "Android Studio not found. Open it manually and create an Empty Activity (Compose) project at:"
-      echo "  $ROOT/android  (package: $PACKAGE)"
+      echo "(Android Studio not auto-detected. Open it and create the project at the path above.)"
     fi
+    [ "${BOOTSTRAP_NOWAIT:-}" = "1" ] || wait_for "android/" "android_ready"
   fi
-
-  print_steps
-
-  if [ "${BOOTSTRAP_NOWAIT:-}" = "1" ]; then return 0; fi
-
-  echo "Watching for scaffolding to land (Ctrl-C to stop)..."
-  local s_done=0 a_done=0
-  while [ $s_done -eq 0 ] || [ $a_done -eq 0 ]; do
-    if [ $s_done -eq 0 ] && server_ready; then echo "✓ server/ ready"; s_done=1; fi
-    if [ $a_done -eq 0 ] && android_ready; then echo "✓ android/ ready"; a_done=1; fi
-    [ $s_done -eq 1 ] && [ $a_done -eq 1 ] && break
-    sleep 3
-  done
 
   echo
   cmd_verify
@@ -179,7 +189,7 @@ cmd_all() {
 
 case "$cmd" in
   all)         cmd_all ;;
-  init)        cmd_init && print_steps ;;
+  init)        cmd_init; . "$ENV_FILE"; step_server; step_android ;;
   verify)      cmd_verify ;;
   run-server)  cmd_run_server ;;
   *) echo "usage: $0 [all|init|verify|run-server]"; exit 1 ;;
