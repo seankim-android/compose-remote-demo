@@ -98,7 +98,8 @@ On the page that just opened (start.ktor.io):
 
   1. Project name: server
   2. Package:      $PACKAGE
-  3. Add plugins:  Routing, ContentNegotiation, kotlinx.serialization
+  3. Add plugins:  Content Negotiation, Kotlinx.serialization (JSON)
+     (Routing is in core in Ktor 3.x — no separate plugin needed.)
   4. Click "Download" → you get a zip.
   5. Unzip its contents into:
        $ROOT/server/
