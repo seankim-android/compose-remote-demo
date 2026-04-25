@@ -1,39 +1,38 @@
-# compose-remote-starter
+# compose-remote-demo
 
-A starter for poking at [Jetpack Compose Remote](https://developer.android.com/jetpack/androidx/releases/compose-remote). Tiny Ktor server emits a remote composition, an Android app fetches and renders it, and you can edit the layout server-side without rebuilding the client.
+A small runnable demo of [Jetpack Compose Remote](https://developer.android.com/jetpack/androidx/releases/compose-remote). A Ktor server emits a remote composition, an Android client fetches and renders it, and you can edit the layout server-side without rebuilding the client.
 
-> Status: **scaffold**. Compose Remote is at `1.0.0-alpha05`. APIs will move. This repo will move with them.
+> Status: alpha. Compose Remote is at `1.0.0-alpha05`. APIs will move; this repo will move with them.
 
 ## Layout
 
 ```
-compose-remote-starter/
-├── server/         # Ktor server. Emits remote compositions over HTTP.
-├── android/        # Host Android app. Fetches and renders.
-├── shared/         # Types/schemas shared between server and client (optional).
-├── samples/
-│   └── basic/      # Minimal end-to-end demo using the template.
-└── docs/           # Notes, diagrams, and screenshots.
+compose-remote-demo/
+├── server/    # Ktor server. Emits remote compositions over HTTP.
+├── android/   # Android client. Fetches and renders.
+├── shared/    # Optional shared types/schemas.
+└── docs/      # Notes, diagrams, screenshots.
 ```
 
-The template (`server/`, `android/`, `shared/`) is what you fork or copy. `samples/basic/` is a runnable example so you can see the wiring before you start your own project.
-
-## Quick start
+## Run it
 
 ```bash
-./bootstrap.sh             # one-shot: prompts, opens generators, watches for scaffolding, verifies
-./bootstrap.sh run-server  # once verified
+cd server && ./gradlew run
 ```
-
-Subcommands: `init` (just prompts), `verify`, `run-server`, `all` (default).
 
 Then open `android/` in Android Studio and Run. The app hits the server at `http://10.0.2.2:8080` from the emulator.
 
 To iterate on layout: edit the composition in `server/` (e.g. `Routes.kt`) and re-request from the app. No client rebuild needed.
 
-## Why a script and not a pre-baked scaffold
+## Fork it as a starter
 
-The Gradle/Android scaffolding isn't checked in on purpose. Compose Remote is `1.0.0-alpha05`, Ktor and AGP move on their own schedules, and pinned templates rot fast. `bootstrap.sh` drives the upstream generators ([start.ktor.io](https://start.ktor.io), Android Studio's New Project flow) so you get current versions, then verifies the result.
+If you'd rather start clean with current Ktor/AGP versions instead of the ones pinned here, run:
+
+```bash
+./bootstrap.sh
+```
+
+It walks you through generating fresh Ktor + Android Studio scaffolds into `server/` and `android/`. The reason it isn't pre-baked: Compose Remote is alpha, Ktor and AGP move on their own schedules, and pinned templates rot.
 
 After scaffolding, add the AndroidX Compose Remote dependencies per the [release notes](https://developer.android.com/jetpack/androidx/releases/compose-remote).
 

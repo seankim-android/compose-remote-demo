@@ -1,0 +1,7 @@
+ktor:
+  deployment:
+    port: 8080
+  application:
+    modules:
+      - dev.seankim.composeremote.SerializationKt.configureSerialization
+      - dev.seankim.composeremote.RoutingKt.configureRouting
