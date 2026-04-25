@@ -20,31 +20,22 @@ The template (`server/`, `android/`, `shared/`) is what you fork or copy. `sampl
 
 ## Quick start
 
-### 1. Run the server
-
 ```bash
-cd server
-./gradlew run
-# Server listens on http://localhost:8080
+./bootstrap.sh init     # asks a couple questions, points you at the generators
+# (run the Ktor + Android Studio steps it prints)
+./bootstrap.sh verify   # checks both sides are scaffolded
+./bootstrap.sh run-server
 ```
 
-### 2. Run the Android app
+Then open `android/` in Android Studio and Run. The app hits the server at `http://10.0.2.2:8080` from the emulator.
 
-Open `android/` in Android Studio and run the app on an emulator or device. The app expects the server at `http://10.0.2.2:8080` (emulator → host).
+To iterate on layout: edit the composition in `server/` (e.g. `Routes.kt`) and re-request from the app. No client rebuild needed.
 
-### 3. Edit the layout
+## Why a script and not a pre-baked scaffold
 
-Change the composition emitted by `server/src/main/kotlin/Routes.kt` and re-request from the app. No rebuild needed on the client.
+The Gradle/Android scaffolding isn't checked in on purpose — Compose Remote is `1.0.0-alpha05`, Ktor and AGP move on their own schedules, and pinned templates rot fast. `bootstrap.sh` drives the upstream generators ([start.ktor.io](https://start.ktor.io), Android Studio's New Project flow) so you get current versions, then verifies the result.
 
-## Bootstrapping (first time)
-
-The Gradle/Android scaffolding is intentionally not pre-generated, so versions stay current. Bootstrap once with:
-
-- **Server:** [Ktor project generator](https://start.ktor.io) → drop output into `server/`.
-- **Android:** Android Studio → New Project → Empty Compose Activity → target `android/`.
-- **Shared (optional):** `gradle init` → Kotlin library → `shared/`.
-
-Then add the AndroidX Compose Remote dependencies per the [release notes](https://developer.android.com/jetpack/androidx/releases/compose-remote).
+After scaffolding, add the AndroidX Compose Remote dependencies per the [release notes](https://developer.android.com/jetpack/androidx/releases/compose-remote).
 
 ## Why this exists
 
