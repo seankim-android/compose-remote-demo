@@ -1,24 +1,17 @@
 # android/
 
-Host Android app. Fetches a remote composition from `server/` and renders it with the Compose Remote runtime.
-
-## Bootstrap (first time)
-
-1. Open Android Studio → New Project → **Empty Activity** (Compose).
-2. Set package name (suggested: `dev.seankim.composeremote.starter`).
-3. Drop the generated files into this directory.
-4. Add the Compose Remote player artifacts per the [AndroidX release notes](https://developer.android.com/jetpack/androidx/releases/compose-remote).
+Android client. Fetches a remote composition from `server/` and renders it with the Compose Remote runtime.
 
 ## Run
 
-Open the project root in Android Studio and run on an emulator. The app expects the local server at `http://10.0.2.2:8080` (emulator → host machine).
+Open this folder in Android Studio and run on an emulator. The app talks to the local server at `http://10.0.2.2:8080` (the emulator's loopback to your host).
 
-For a physical device on the same network, set `BASE_URL` to your machine's LAN IP.
+For a physical device on the same network, point `BASE_URL` at your machine's LAN IP.
 
-## Structure (planned)
+## Structure
 
-- `MainActivity`: entry point, Compose theme, navigation host.
-- `RemoteScreen`: Composable that fetches a remote composition and hands it to the Compose Remote player.
-- `network/`: Ktor client wired to the server.
+- `MainActivity`: entry point, Compose theme.
+- `RemoteScreen` (planned): fetches a remote composition and hands it to the Compose Remote player.
+- `network/` (planned): Ktor client wired to the server.
 
-Update this section once the code exists.
+Package: `dev.seankim.composeremote.client`.
