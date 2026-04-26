@@ -37,6 +37,12 @@ android {
     buildFeatures {
         compose = true
     }
+    lint {
+        // Compose Remote alpha09 marks its public player APIs (RemoteDocument,
+        // RemoteDocumentPlayer) as @RestrictTo(LIBRARY_GROUP). External demos
+        // are expected to call them anyway until the alpha settles.
+        disable += "RestrictedApi"
+    }
 }
 
 dependencies {

@@ -1,6 +1,7 @@
 package dev.seankim.composeremote
 
 import dev.seankim.composeremote.compositions.Variant
+import dev.seankim.composeremote.compositions.Viewport
 import dev.seankim.composeremote.compositions.descriptorFor
 import dev.seankim.composeremote.compositions.documentFor
 import dev.seankim.composeremote.compositions.itemDescriptor
@@ -21,19 +22,23 @@ fun Application.configureRouting() {
             )
         }
         get("/screens/home") {
-            val variant = Variant.parse(call.request.queryParameters["variant"])
-            if (call.request.queryParameters["format"] == "json") {
+            val q = call.request.queryParameters
+            val variant = Variant.parse(q["variant"])
+            val viewport = Viewport.parse(q["w"], q["h"], q["density"])
+            if (q["format"] == "json") {
                 call.respond(descriptorFor(variant))
             } else {
-                call.respondBytes(documentFor(variant), ContentType.Application.OctetStream)
+                call.respondBytes(documentFor(variant, viewport), ContentType.Application.OctetStream)
             }
         }
         get("/screens/item") {
-            val id = call.request.queryParameters["id"]?.toIntOrNull() ?: 1
-            if (call.request.queryParameters["format"] == "json") {
+            val q = call.request.queryParameters
+            val id = q["id"]?.toIntOrNull() ?: 1
+            val viewport = Viewport.parse(q["w"], q["h"], q["density"])
+            if (q["format"] == "json") {
                 call.respond(itemDescriptor(id))
             } else {
-                call.respondBytes(itemDocument(id), ContentType.Application.OctetStream)
+                call.respondBytes(itemDocument(id, viewport), ContentType.Application.OctetStream)
             }
         }
     }
