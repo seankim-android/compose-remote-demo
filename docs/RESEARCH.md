@@ -108,6 +108,21 @@ to mirror Compose: `.fillMaxSize()`, `.size(w, h)`, `.background(intColor)`, `.o
 Actions are typed: `HostAction(id)` for client-side handling, looks like there is also a
 `NamedAction` based on the player's `onNamedAction` callback signature.
 
+## Footguns we hit
+
+- `RemoteComposeWriter.buffer()` returns the **entire** backing byte array (1 MiB at
+  alpha09), not just the bytes actually written. Use `bufferSize()` and `copyOf()` to
+  trim, or every response is 1 MiB regardless of content. We discovered this on the
+  first round-trip: the payload should have been ~460 bytes, was 1048576.
+- `remote-creation-jvm` only exports platform helpers (`JvmRcPlatformServices`,
+  `RemotePath`). The actual authoring entry point `RemoteComposeContext` lives in
+  `remote-creation-core`. Both modules are needed on the server. Pulling in `remote-core`
+  too is required for `RcProfiles` and the wire format types.
+- The artifacts publish to **Google Maven**, not Maven Central. A non-Android Gradle
+  module needs `google()` added to `dependencyResolutionManagement.repositories`.
+- `remote-player-compose` alpha09 requires `minSdk 29`. That cuts off ~10.9% of active
+  devices vs the typical Compose minSdk of 24.
+
 ## Caveats
 
 - All API names captured here are from alpha01. Verify against alpha09 once we add deps and
