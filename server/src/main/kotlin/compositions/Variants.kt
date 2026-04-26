@@ -118,7 +118,12 @@ private const val DEFAULT_H = 760
 private const val SCROLL_NONE = 0
 private const val ALIGN_TOP_START = 17 // ALIGNMENT_TOP (1) | ALIGNMENT_START (16)
 private const val SIZING_SCALE = 2
-private const val SCALE_FIT = 4
+// SCALE_FILL_WIDTH always scales by view_px_w / canvas_w. With canvas authored
+// in dp and view measured in px, that ratio equals the device density, so dp
+// values render as sp-equivalents without us threading density through every
+// helper. Aspect mismatches just leave empty space at the bottom rather than
+// overflowing the right edge the way SCALE_FIT does.
+private const val SCALE_FILL_WIDTH = 2
 
 // `density` is the client's display density (px per dp). We need it because
 // Compose Remote's text() and modifier sizes are stored as raw pixels and
@@ -152,7 +157,7 @@ private fun render(
         // Tell the player to lay out the doc to fill its actual size, not to
         // scale a fixed canvas to fit. Without this, authored sp values render
         // tiny on a phone-sized viewport because the player downscales.
-        setRootContentBehavior(SCROLL_NONE, ALIGN_TOP_START, SIZING_SCALE, SCALE_FIT)
+        setRootContentBehavior(SCROLL_NONE, ALIGN_TOP_START, SIZING_SCALE, SCALE_FILL_WIDTH)
         body()
     }
     return ctx.writer.buffer().copyOf(ctx.writer.bufferSize())
@@ -162,58 +167,77 @@ private fun rounded(r: Float) = RoundedRectShape(r, r, r, r)
 
 // ---- Type helpers ---------------------------------------------------------
 
+// text() defaults maxLines to 1, which disables wrapping (TextLayout only
+// calls layoutComplexText when mMaxLines > 1). Setting maxLines high lets
+// the column's width constraint actually wrap the text. We deliberately do
+// NOT pass fillMaxWidth on the modifier: that translates to a FILL dimension
+// op which the layout engine resolves to Float.MAX_VALUE, which then makes
+// the maxWidth handed to TextLayout effectively infinite — so wrapping never
+// triggers no matter what maxLines is. Letting text inherit the column's
+// measured width is what actually constrains it.
+private const val WRAP_LINES = 100
+private const val OVERFLOW_CLIP = 1
+
 private fun RemoteComposeContext.eyebrow(label: String) = text(
-    string = label.uppercase(),
+    string =label.uppercase(),
     color = INK_SECONDARY,
     fontSize = 11f,
     fontWeight = 500f,
     fontFamily = FAM_BODY,
     letterSpacing = 0.08f,
+    maxLines = WRAP_LINES,
+    overflow = OVERFLOW_CLIP,
 )
 
 private fun RemoteComposeContext.section(label: String) = text(
-    string = label,
+    string =label,
     color = INK_PRIMARY,
     fontSize = 13f,
     fontWeight = 500f,
     fontFamily = FAM_BODY,
+    maxLines = WRAP_LINES,
+    overflow = OVERFLOW_CLIP,
 )
 
 private fun RemoteComposeContext.meta(label: String) = text(
-    string = label,
+    string =label,
     color = INK_SECONDARY,
     fontSize = 13f,
     fontFamily = FAM_BODY,
+    maxLines = WRAP_LINES,
+    overflow = OVERFLOW_CLIP,
 )
 
-// Display family is serif at weight 600 italic. Per-glyph metrics make this
-// read about 1.5x larger than the same numeric fontSize at sans-serif weight
-// 400, so the authored fontSize here is intentionally smaller than what the
-// design spec calls for in sp.
 private fun RemoteComposeContext.headline(label: String) = text(
-    string = label,
+    string =label,
     color = INK_PRIMARY,
     fontSize = 14f,
     fontStyle = ITALIC,
     fontWeight = 600f,
     fontFamily = FAM_DISPLAY,
     lineHeightAdd = 2f,
+    maxLines = WRAP_LINES,
+    overflow = OVERFLOW_CLIP,
 )
 
 private fun RemoteComposeContext.deck(label: String) = text(
-    string = label,
+    string =label,
     color = INK_SECONDARY,
     fontSize = 13f,
     fontFamily = FAM_BODY,
     lineHeightAdd = 4f,
+    maxLines = WRAP_LINES,
+    overflow = OVERFLOW_CLIP,
 )
 
 private fun RemoteComposeContext.bodyParagraph(label: String) = text(
-    string = label,
+    string =label,
     color = INK_PRIMARY,
     fontSize = 14f,
     fontFamily = FAM_DISPLAY,
     lineHeightAdd = 6f,
+    maxLines = WRAP_LINES,
+    overflow = OVERFLOW_CLIP,
 )
 
 // ---- CTA helpers ----------------------------------------------------------
@@ -230,12 +254,11 @@ private fun RemoteComposeContext.primaryCta(label: String, actionId: Int) {
         vertical = BOX_CENTER,
     ) {
         text(
-            string = "$label  ›",
+            string = label,
             color = ON_ACCENT,
-            fontSize = 14f,
+            fontSize = 16f,
             fontWeight = 600f,
             fontFamily = FAM_BODY,
-            textAlign = ALIGN_CENTER,
         )
     }
 }
@@ -258,7 +281,7 @@ private fun RemoteComposeContext.textCta(
         text(
             string = label,
             color = ACCENT,
-            fontSize = 13f,
+            fontSize = 14f,
             fontWeight = 500f,
             fontFamily = FAM_BODY,
         )
@@ -294,15 +317,21 @@ private fun RemoteComposeContext.hero(label: String) {
 
 // ---- Documents ------------------------------------------------------------
 
-private fun pageColumn() = RecordingModifier()
-    .fillMaxSize()
+// `fillMaxSize()` on the page column resolves to Float.MAX_VALUE for both
+// dimensions, and that infinity propagates down — text() then measures to its
+// intrinsic width and never wraps because maxWidth is never less than text
+// width. Pinning width to viewport.w (a real EXACT dimension op) is what
+// gives child text a finite maxWidth so wrapping actually triggers.
+private fun pageColumn(viewport: Viewport) = RecordingModifier()
+    .width(viewport.w.toFloat())
+    .fillMaxHeight()
     .background(BG)
     .padding(16, 8, 16, 16)
     .spacedBy(12f)
 
 fun briefDocument(viewport: Viewport): ByteArray = render("Brief - Daily", viewport) {
     root {
-        column(modifier = pageColumn()) {
+        column(modifier = pageColumn(viewport)) {
             section("Today")
             meta("3 new since yesterday")
             hero("Featured release")
@@ -316,7 +345,7 @@ fun briefDocument(viewport: Viewport): ByteArray = render("Brief - Daily", viewp
 
 fun sparseDocument(viewport: Viewport): ByteArray = render("Brief - Sparse", viewport) {
     root {
-        column(modifier = pageColumn()) {
+        column(modifier = pageColumn(viewport)) {
             headline("Quiet day")
             deck("Nothing new since yesterday.")
             textCta("Catch me up", Actions.CATCH_ME_UP, align = BOX_CENTER)
@@ -326,7 +355,7 @@ fun sparseDocument(viewport: Viewport): ByteArray = render("Brief - Sparse", vie
 
 fun catalogDocument(viewport: Viewport): ByteArray = render("Brief - Catalog", viewport) {
     root {
-        column(modifier = pageColumn()) {
+        column(modifier = pageColumn(viewport)) {
             section("Catalog")
             val titles = listOf(
                 "Featured release" to "Headline release for today.",
@@ -347,7 +376,7 @@ fun catalogDocument(viewport: Viewport): ByteArray = render("Brief - Catalog", v
 
 fun itemDocument(id: Int, viewport: Viewport): ByteArray = render("Brief - Item $id", viewport) {
     root {
-        column(modifier = pageColumn()) {
+        column(modifier = pageColumn(viewport)) {
             eyebrow("Releases")
             text(
                 string = "Item $id, notes from a quiet wire",
@@ -356,6 +385,8 @@ fun itemDocument(id: Int, viewport: Viewport): ByteArray = render("Brief - Item 
                 fontStyle = ITALIC,
                 fontWeight = 600f,
                 fontFamily = FAM_DISPLAY,
+                maxLines = WRAP_LINES,
+                overflow = OVERFLOW_CLIP,
             )
             text(
                 string = "BY THE WIRE - 4 MIN READ",
@@ -364,6 +395,8 @@ fun itemDocument(id: Int, viewport: Viewport): ByteArray = render("Brief - Item 
                 fontWeight = 500f,
                 fontFamily = FAM_BODY,
                 letterSpacing = 0.08f,
+                maxLines = WRAP_LINES,
+                overflow = OVERFLOW_CLIP,
             )
             bodyParagraph(
                 "The server emits a binary Compose Remote document. The client is a thin renderer " +

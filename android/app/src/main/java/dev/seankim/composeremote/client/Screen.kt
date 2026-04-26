@@ -17,13 +17,13 @@ sealed interface Screen {
     data class Home(val variant: Variant) : Screen {
         override val title = "Brief"
         override fun url(viewport: Viewport) =
-            "$BASE_URL/screens/home?variant=${variant.slug}&w=${viewport.w}&h=${viewport.h}"
+            "$BASE_URL/screens/home?variant=${variant.slug}&w=${viewport.w}&h=${viewport.h}&density=${viewport.density}"
     }
 
     data class Item(val id: Int) : Screen {
         override val title = "Item $id"
         override fun url(viewport: Viewport) =
-            "$BASE_URL/screens/item?id=$id&w=${viewport.w}&h=${viewport.h}"
+            "$BASE_URL/screens/item?id=$id&w=${viewport.w}&h=${viewport.h}&density=${viewport.density}"
     }
 }
 
