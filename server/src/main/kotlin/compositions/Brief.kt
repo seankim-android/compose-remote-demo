@@ -1,5 +1,6 @@
 package dev.seankim.composeremote.compositions
 
+import androidx.compose.remote.core.RcProfiles
 import androidx.compose.remote.creation.JvmRcPlatformServices
 import androidx.compose.remote.creation.RemoteComposeContext
 import androidx.compose.remote.creation.modifiers.RecordingModifier
@@ -16,6 +17,8 @@ fun briefDocument(): ByteArray {
         390,
         844,
         "Brief - Daily",
+        6,
+        RcProfiles.PROFILE_ANDROIDX,
         JvmRcPlatformServices(),
     ) {
         root {
