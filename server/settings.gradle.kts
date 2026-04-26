@@ -9,6 +9,7 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
+        google() // androidx.compose.remote artifacts publish here
         mavenCentral()
     }
     versionCatalogs {

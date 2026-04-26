@@ -23,6 +23,10 @@ dependencies {
     implementation(ktorLibs.server.netty)
     implementation(libs.logback.classic)
 
+    implementation(libs.compose.remote.core)
+    implementation(libs.compose.remote.creation.core)
+    implementation(libs.compose.remote.creation.jvm)
+
     testImplementation(kotlin("test"))
     testImplementation(ktorLibs.server.testHost)
 }
