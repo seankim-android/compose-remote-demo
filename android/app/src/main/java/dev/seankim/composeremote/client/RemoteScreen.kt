@@ -1,5 +1,8 @@
 package dev.seankim.composeremote.client
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -19,6 +23,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -28,12 +34,14 @@ import androidx.compose.remote.player.core.RemoteDocument
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +49,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 
-private const val BASE_URL = "http://10.0.2.2:8080/screens/home"
+private const val BASE = "http://10.0.2.2:8080"
 
 private enum class Variant(val slug: String, val label: String) {
     BRIEF("brief", "Brief"),
@@ -49,7 +57,20 @@ private enum class Variant(val slug: String, val label: String) {
     CATALOG("catalog", "Catalog"),
 }
 
-private fun variantUrl(variant: Variant) = "$BASE_URL?variant=${variant.slug}"
+private sealed interface Screen {
+    val title: String
+    val url: String
+
+    data class Home(val variant: Variant) : Screen {
+        override val title = "Brief"
+        override val url = "$BASE/screens/home?variant=${variant.slug}"
+    }
+
+    data class Item(val id: Int) : Screen {
+        override val title = "Item $id"
+        override val url = "$BASE/screens/item?id=$id"
+    }
+}
 
 private data class FetchResult(
     val url: String,
@@ -57,8 +78,7 @@ private data class FetchResult(
     val latencyMs: Long,
 )
 
-private suspend fun fetch(variant: Variant): FetchResult = withContext(Dispatchers.IO) {
-    val url = variantUrl(variant)
+private suspend fun fetch(url: String): FetchResult = withContext(Dispatchers.IO) {
     val start = System.currentTimeMillis()
     val data = URL(url).openStream().use { it.readBytes() }
     FetchResult(url = url, bytes = data, latencyMs = System.currentTimeMillis() - start)
@@ -67,29 +87,82 @@ private suspend fun fetch(variant: Variant): FetchResult = withContext(Dispatche
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemoteScreen(modifier: Modifier = Modifier) {
-    var variant by remember { mutableStateOf(Variant.BRIEF) }
+    val context = LocalContext.current
+    val backStack = remember { mutableStateListOf<Screen>(Screen.Home(Variant.BRIEF)) }
+    val current = backStack.last()
     var result by remember { mutableStateOf<FetchResult?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
     var inspectorOpen by remember { mutableStateOf(false) }
+    var savedForLater by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     suspend fun load() {
         try {
             error = null
-            result = fetch(variant)
+            result = fetch(current.url)
         } catch (e: Exception) {
             error = e.message ?: e::class.java.simpleName
         }
     }
 
-    LaunchedEffect(variant) { load() }
+    LaunchedEffect(current) { load() }
+
+    fun pop() {
+        if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+    }
+
+    fun onAction(id: Int) {
+        when (id) {
+            in 2001..2099 -> backStack.add(Screen.Item(id - 2000))
+            1001 -> scope.launch { snackbar.showSnackbar("Opened featured release") }
+            1002 -> {
+                savedForLater = !savedForLater
+                scope.launch {
+                    snackbar.showSnackbar(if (savedForLater) "Saved for later" else "Removed from saved")
+                }
+            }
+            1003 -> {
+                backStack[backStack.lastIndex] = Screen.Home(Variant.CATALOG)
+            }
+            1004 -> scope.launch {
+                refreshing = true
+                load()
+                refreshing = false
+            }
+            3001 -> {
+                pop()
+                scope.launch { snackbar.showSnackbar("Marked read") }
+            }
+            3002 -> {
+                val itemId = (current as? Screen.Item)?.id ?: 0
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/item/$itemId"))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+                Unit
+            }
+            else -> scope.launch { snackbar.showSnackbar("Action $id") }
+        }
+    }
+
+    BackHandler(enabled = backStack.size > 1) { pop() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Brief") },
+                title = { Text(current.title) },
+                navigationIcon = {
+                    if (backStack.size > 1) {
+                        IconButton(onClick = { pop() }) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                },
                 actions = {
                     IconButton(
                         onClick = { inspectorOpen = true },
@@ -100,13 +173,16 @@ fun RemoteScreen(modifier: Modifier = Modifier) {
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbar) },
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            VariantPicker(
-                selected = variant,
-                onSelect = { variant = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+            (current as? Screen.Home)?.let { home ->
+                VariantPicker(
+                    selected = home.variant,
+                    onSelect = { backStack[backStack.lastIndex] = Screen.Home(it) },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
             PullToRefreshBox(
                 isRefreshing = refreshing,
                 onRefresh = {
@@ -124,11 +200,15 @@ fun RemoteScreen(modifier: Modifier = Modifier) {
                             modifier = Modifier.padding(24.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Text("Could not reach ${variantUrl(variant)}", style = MaterialTheme.typography.titleMedium)
+                            Text("Could not reach ${current.url}", style = MaterialTheme.typography.titleMedium)
                             Text(error!!, style = MaterialTheme.typography.bodyLarge)
                         }
                         result == null -> Text("Loading…")
-                        else -> RemotePlayer(bytes = result!!.bytes, modifier = Modifier.fillMaxSize())
+                        else -> RemotePlayer(
+                            bytes = result!!.bytes,
+                            onAction = ::onAction,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     }
                 }
             }
@@ -212,12 +292,17 @@ private fun hexPreview(bytes: ByteArray, max: Int): String {
 private val HEX = "0123456789abcdef".toCharArray()
 
 @Composable
-private fun RemotePlayer(bytes: ByteArray, modifier: Modifier = Modifier) {
+private fun RemotePlayer(
+    bytes: ByteArray,
+    onAction: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val document = remember(bytes) { RemoteDocument(bytes) }
     RemoteDocumentPlayer(
         document = document.document,
         documentWidth = document.width,
         documentHeight = document.height,
         modifier = modifier,
+        onAction = { id, _ -> onAction(id) },
     )
 }

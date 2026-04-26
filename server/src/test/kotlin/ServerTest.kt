@@ -36,6 +36,15 @@ class ServerTest {
     }
 
     @Test
+    fun `item detail returns bytes for the requested id`() = testApplication {
+        configure()
+        val one = client.get("/screens/item?id=1").bodyAsBytes()
+        val three = client.get("/screens/item?id=3").bodyAsBytes()
+        assertTrue(one.isNotEmpty() && three.isNotEmpty())
+        assertFalse(one.contentEquals(three), "different ids should differ in payload")
+    }
+
+    @Test
     fun `unknown variant falls back to brief`() = testApplication {
         configure()
         val unknown = client.get("/screens/home?variant=nope").bodyAsBytes()
