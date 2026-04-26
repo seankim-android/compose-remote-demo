@@ -118,12 +118,12 @@ private const val DEFAULT_H = 760
 private const val SCROLL_NONE = 0
 private const val ALIGN_TOP_START = 17 // ALIGNMENT_TOP (1) | ALIGNMENT_START (16)
 private const val SIZING_SCALE = 2
-// SCALE_FILL_WIDTH always scales by view_px_w / canvas_w. With canvas authored
-// in dp and view measured in px, that ratio equals the device density, so dp
-// values render as sp-equivalents without us threading density through every
-// helper. Aspect mismatches just leave empty space at the bottom rather than
-// overflowing the right edge the way SCALE_FIT does.
-private const val SCALE_FILL_WIDTH = 2
+// SCALE_FIT keeps the scale uniform on both axes so touch hit-testing works
+// (the player projects view px → canvas coords using a single scale; with
+// SCALE_FILL_WIDTH the y projection is wrong and ripples land on the wrong
+// element). The client must send canvas h close to the actual view dp height
+// to avoid a right-side padding gap.
+private const val SCALE_FIT = 4
 
 // `density` is the client's display density (px per dp). We need it because
 // Compose Remote's text() and modifier sizes are stored as raw pixels and
@@ -141,6 +141,13 @@ data class Viewport(val w: Int, val h: Int, val density: Float) {
     }
 }
 
+// Wraps the document body in an EXACT-width box so descendants inherit a
+// finite max-width (text wraps, padding pads). KNOWN ISSUE in alpha08/09:
+// once an EXACT width sits above the click target, the player's hit-test
+// routes taps to the wrong node — Save for later receives every tap meant
+// for Read featured. Catalog row navigation still works because the outer
+// box doesn't disturb that path. Filed as upstream issue; needs a fix from
+// the Compose Remote team or a redesign of the canvas/scaling contract.
 private fun render(
     name: String,
     viewport: Viewport,
@@ -154,11 +161,18 @@ private fun render(
         RcProfiles.PROFILE_ANDROIDX,
         JvmRcPlatformServices(),
     ) {
-        // Tell the player to lay out the doc to fill its actual size, not to
-        // scale a fixed canvas to fit. Without this, authored sp values render
-        // tiny on a phone-sized viewport because the player downscales.
-        setRootContentBehavior(SCROLL_NONE, ALIGN_TOP_START, SIZING_SCALE, SCALE_FILL_WIDTH)
-        body()
+        setRootContentBehavior(SCROLL_NONE, ALIGN_TOP_START, SIZING_SCALE, SCALE_FIT)
+        root {
+            box(
+                modifier = RecordingModifier()
+                    .width(viewport.w.toFloat())
+                    .fillMaxHeight(),
+                horizontal = BOX_START,
+                vertical = BOX_TOP,
+            ) {
+                body()
+            }
+        }
     }
     return ctx.writer.buffer().copyOf(ctx.writer.bufferSize())
 }
@@ -167,19 +181,15 @@ private fun rounded(r: Float) = RoundedRectShape(r, r, r, r)
 
 // ---- Type helpers ---------------------------------------------------------
 
-// text() defaults maxLines to 1, which disables wrapping (TextLayout only
-// calls layoutComplexText when mMaxLines > 1). Setting maxLines high lets
-// the column's width constraint actually wrap the text. We deliberately do
-// NOT pass fillMaxWidth on the modifier: that translates to a FILL dimension
-// op which the layout engine resolves to Float.MAX_VALUE, which then makes
-// the maxWidth handed to TextLayout effectively infinite — so wrapping never
-// triggers no matter what maxLines is. Letting text inherit the column's
-// measured width is what actually constrains it.
+// text() in alpha09 defaults maxLines to 1, which disables wrapping entirely
+// (TextLayout only enters its wrap path when mMaxLines > 1). render() pins
+// the root to viewport.w so descendants inherit a finite max-width; helpers
+// just need to opt in to wrapping with these knobs.
 private const val WRAP_LINES = 100
 private const val OVERFLOW_CLIP = 1
 
 private fun RemoteComposeContext.eyebrow(label: String) = text(
-    string =label.uppercase(),
+    string = label.uppercase(),
     color = INK_SECONDARY,
     fontSize = 11f,
     fontWeight = 500f,
@@ -190,7 +200,7 @@ private fun RemoteComposeContext.eyebrow(label: String) = text(
 )
 
 private fun RemoteComposeContext.section(label: String) = text(
-    string =label,
+    string = label,
     color = INK_PRIMARY,
     fontSize = 13f,
     fontWeight = 500f,
@@ -200,7 +210,7 @@ private fun RemoteComposeContext.section(label: String) = text(
 )
 
 private fun RemoteComposeContext.meta(label: String) = text(
-    string =label,
+    string = label,
     color = INK_SECONDARY,
     fontSize = 13f,
     fontFamily = FAM_BODY,
@@ -209,7 +219,7 @@ private fun RemoteComposeContext.meta(label: String) = text(
 )
 
 private fun RemoteComposeContext.headline(label: String) = text(
-    string =label,
+    string = label,
     color = INK_PRIMARY,
     fontSize = 14f,
     fontStyle = ITALIC,
@@ -221,7 +231,7 @@ private fun RemoteComposeContext.headline(label: String) = text(
 )
 
 private fun RemoteComposeContext.deck(label: String) = text(
-    string =label,
+    string = label,
     color = INK_SECONDARY,
     fontSize = 13f,
     fontFamily = FAM_BODY,
@@ -231,7 +241,7 @@ private fun RemoteComposeContext.deck(label: String) = text(
 )
 
 private fun RemoteComposeContext.bodyParagraph(label: String) = text(
-    string =label,
+    string = label,
     color = INK_PRIMARY,
     fontSize = 14f,
     fontFamily = FAM_DISPLAY,
@@ -242,24 +252,34 @@ private fun RemoteComposeContext.bodyParagraph(label: String) = text(
 
 // ---- CTA helpers ----------------------------------------------------------
 
+// In alpha09, a row's onClick only fires when the tap lands on a child that
+// actually spans the row. catalogRow works because it has a weighted column +
+// a trailing sibling text, so the row's hit area covers the full width.
+// CTAs use the same two-child shape (weighted column for the label + a thin
+// sibling text spacer) so taps register the same way.
 private fun RemoteComposeContext.primaryCta(label: String, actionId: Int) {
-    box(
+    row(
         modifier = RecordingModifier()
             .fillMaxWidth()
             .background(ACCENT)
-            .clip(rounded(8f))
-            .padding(16, 12, 16, 12)
+            .padding(16, 14, 16, 14)
             .onClick(HostAction(actionId)),
-        horizontal = BOX_CENTER,
+        horizontal = BOX_START,
         vertical = BOX_CENTER,
     ) {
-        text(
-            string = label,
-            color = ON_ACCENT,
-            fontSize = 16f,
-            fontWeight = 600f,
-            fontFamily = FAM_BODY,
-        )
+        column(
+            modifier = RecordingModifier().horizontalWeight(1f),
+            horizontal = BOX_CENTER,
+        ) {
+            text(
+                string = label,
+                color = ON_ACCENT,
+                fontSize = 16f,
+                fontWeight = 600f,
+                fontFamily = FAM_BODY,
+            )
+        }
+        text(string = " ", color = ON_ACCENT, fontSize = 1f, fontFamily = FAM_BODY)
     }
 }
 
@@ -270,21 +290,27 @@ private fun RemoteComposeContext.textCta(
     actionId: Int,
     align: Int = BOX_END,
 ) {
-    box(
+    row(
         modifier = RecordingModifier()
             .fillMaxWidth()
             .padding(8, 10, 8, 10)
             .onClick(HostAction(actionId)),
-        horizontal = align,
+        horizontal = BOX_START,
         vertical = BOX_CENTER,
     ) {
-        text(
-            string = label,
-            color = ACCENT,
-            fontSize = 14f,
-            fontWeight = 500f,
-            fontFamily = FAM_BODY,
-        )
+        column(
+            modifier = RecordingModifier().horizontalWeight(1f),
+            horizontal = align,
+        ) {
+            text(
+                string = label,
+                color = ACCENT,
+                fontSize = 14f,
+                fontWeight = 500f,
+                fontFamily = FAM_BODY,
+            )
+        }
+        text(string = " ", color = INK_TERTIARY, fontSize = 1f, fontFamily = FAM_BODY)
     }
 }
 
@@ -317,102 +343,88 @@ private fun RemoteComposeContext.hero(label: String) {
 
 // ---- Documents ------------------------------------------------------------
 
-// `fillMaxSize()` on the page column resolves to Float.MAX_VALUE for both
-// dimensions, and that infinity propagates down — text() then measures to its
-// intrinsic width and never wraps because maxWidth is never less than text
-// width. Pinning width to viewport.w (a real EXACT dimension op) is what
-// gives child text a finite maxWidth so wrapping actually triggers.
-private fun pageColumn(viewport: Viewport) = RecordingModifier()
-    .width(viewport.w.toFloat())
-    .fillMaxHeight()
+private fun pageColumn() = RecordingModifier()
+    .fillMaxSize()
     .background(BG)
     .padding(16, 8, 16, 16)
     .spacedBy(12f)
 
 fun briefDocument(viewport: Viewport): ByteArray = render("Brief - Daily", viewport) {
-    root {
-        column(modifier = pageColumn(viewport)) {
-            section("Today")
-            meta("3 new since yesterday")
-            hero("Featured release")
-            headline("Featured release")
-            deck("A short summary of the headline release for today.")
-            primaryCta("Read featured", Actions.READ_FEATURED)
-            textCta("Save for later", Actions.SAVE_FOR_LATER)
-        }
+    column(modifier = pageColumn()) {
+        section("Today")
+        meta("3 new since yesterday")
+        hero("Featured release")
+        headline("Featured release")
+        deck("A short summary of the headline release for today.")
+        primaryCta("Read featured", Actions.READ_FEATURED)
+        textCta("Save for later", Actions.SAVE_FOR_LATER)
     }
 }
 
 fun sparseDocument(viewport: Viewport): ByteArray = render("Brief - Sparse", viewport) {
-    root {
-        column(modifier = pageColumn(viewport)) {
-            headline("Quiet day")
-            deck("Nothing new since yesterday.")
-            textCta("Catch me up", Actions.CATCH_ME_UP, align = BOX_CENTER)
-        }
+    column(modifier = pageColumn()) {
+        headline("Quiet day")
+        deck("Nothing new since yesterday.")
+        textCta("Catch me up", Actions.CATCH_ME_UP, align = BOX_CENTER)
     }
 }
 
 fun catalogDocument(viewport: Viewport): ByteArray = render("Brief - Catalog", viewport) {
-    root {
-        column(modifier = pageColumn(viewport)) {
-            section("Catalog")
-            val titles = listOf(
-                "Featured release" to "Headline release for today.",
-                "Notes from a quiet wire" to "4 min read - releases",
-                "How the picker holds state" to "Variant survives detail navigation.",
-                "Item three: navigation rules" to "NamedAction(navigate) is the only push.",
-                "Saving for later, on the server" to "HostAction(1002) explained.",
-                "Round trip times this week" to "30 ms median, 91 ms p99.",
-            )
-            titles.forEachIndexed { i, (title, note) ->
-                val n = i + 1
-                catalogRow(title, note, Actions.navigateItem(n))
-            }
-            textCta("Refresh", Actions.REFRESH, align = BOX_CENTER)
+    column(modifier = pageColumn()) {
+        section("Catalog")
+        val titles = listOf(
+            "Featured release" to "Headline release for today.",
+            "Notes from a quiet wire" to "4 min read - releases",
+            "How the picker holds state" to "Variant survives detail navigation.",
+            "Item three: navigation rules" to "NamedAction(navigate) is the only push.",
+            "Saving for later, on the server" to "HostAction(1002) explained.",
+            "Round trip times this week" to "30 ms median, 91 ms p99.",
+        )
+        titles.forEachIndexed { i, (title, note) ->
+            val n = i + 1
+            catalogRow(title, note, Actions.navigateItem(n))
         }
+        textCta("Refresh", Actions.REFRESH, align = BOX_CENTER)
     }
 }
 
 fun itemDocument(id: Int, viewport: Viewport): ByteArray = render("Brief - Item $id", viewport) {
-    root {
-        column(modifier = pageColumn(viewport)) {
-            eyebrow("Releases")
-            text(
-                string = "Item $id, notes from a quiet wire",
-                color = INK_PRIMARY,
-                fontSize = 30f,
-                fontStyle = ITALIC,
-                fontWeight = 600f,
-                fontFamily = FAM_DISPLAY,
-                maxLines = WRAP_LINES,
-                overflow = OVERFLOW_CLIP,
-            )
-            text(
-                string = "BY THE WIRE - 4 MIN READ",
-                color = INK_TERTIARY,
-                fontSize = 11f,
-                fontWeight = 500f,
-                fontFamily = FAM_BODY,
-                letterSpacing = 0.08f,
-                maxLines = WRAP_LINES,
-                overflow = OVERFLOW_CLIP,
-            )
-            bodyParagraph(
-                "The server emits a binary Compose Remote document. The client is a thin renderer " +
-                    "that fetches the bytes, draws them, and routes user actions back through the server.",
-            )
-            bodyParagraph(
-                "No layout decisions live in the app. Three home variants share one route, and the " +
-                    "detail page is reached only by tapping a Catalog row.",
-            )
-            bodyParagraph(
-                "Navigation is server authored too. The client treats NamedAction(navigate, url) as " +
-                    "the only way to open a new screen.",
-            )
-            primaryCta("Mark read", Actions.MARK_READ)
-            textCta("Open in source", Actions.OPEN_IN_SOURCE)
-        }
+    column(modifier = pageColumn()) {
+        eyebrow("Releases")
+        text(
+            string = "Item $id, notes from a quiet wire",
+            color = INK_PRIMARY,
+            fontSize = 30f,
+            fontStyle = ITALIC,
+            fontWeight = 600f,
+            fontFamily = FAM_DISPLAY,
+            maxLines = WRAP_LINES,
+            overflow = OVERFLOW_CLIP,
+        )
+        text(
+            string = "BY THE WIRE - 4 MIN READ",
+            color = INK_TERTIARY,
+            fontSize = 11f,
+            fontWeight = 500f,
+            fontFamily = FAM_BODY,
+            letterSpacing = 0.08f,
+            maxLines = WRAP_LINES,
+            overflow = OVERFLOW_CLIP,
+        )
+        bodyParagraph(
+            "The server emits a binary Compose Remote document. The client is a thin renderer " +
+                "that fetches the bytes, draws them, and routes user actions back through the server.",
+        )
+        bodyParagraph(
+            "No layout decisions live in the app. Three home variants share one route, and the " +
+                "detail page is reached only by tapping a Catalog row.",
+        )
+        bodyParagraph(
+            "Navigation is server authored too. The client treats NamedAction(navigate, url) as " +
+                "the only way to open a new screen.",
+        )
+        primaryCta("Mark read", Actions.MARK_READ)
+        textCta("Open in source", Actions.OPEN_IN_SOURCE)
     }
 }
 

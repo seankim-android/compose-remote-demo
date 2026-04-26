@@ -5,16 +5,12 @@ plugins {
 
 android {
     namespace = "dev.seankim.composeremote.client"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.seankim.composeremote.client"
-        minSdk = 29 // androidx.compose.remote:remote-player-compose alpha09 requires minSdk 29
-        targetSdk = 36
+        minSdk = 29 // androidx.compose.remote:remote-player-compose alpha08 requires minSdk 29
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
