@@ -4,18 +4,33 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.sp
-
 // Brief Editorial type scale. See docs/design/ for the source spec.
-//
-// Display face: Newsreader (serif). Body/heading: Inter. Metadata: Space Grotesk.
-// FontFamily fallbacks below are placeholders. To match the design exactly,
-// wire androidx.compose.ui:ui-text-google-fonts with a Google Fonts provider
-// and replace FontFamily.Serif / SansSerif / Monospace with the real families.
 
-val DisplayFont = FontFamily.Serif
-val BodyFont = FontFamily.SansSerif
-val MonoFont = FontFamily.Monospace
+private val provider = GoogleFont.Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage = "com.google.android.gms",
+    certificates = emptyList<List<ByteArray>>(),
+)
+
+val DisplayFont = FontFamily(
+    Font(GoogleFont("Newsreader"), provider, weight = FontWeight.Normal),
+    Font(GoogleFont("Newsreader"), provider, weight = FontWeight.SemiBold),
+)
+val BodyFont = FontFamily(
+    Font(GoogleFont("Inter"), provider, weight = FontWeight.Normal),
+    Font(GoogleFont("Inter"), provider, weight = FontWeight.Medium),
+    Font(GoogleFont("Inter"), provider, weight = FontWeight.SemiBold),
+)
+val MetaFont = FontFamily(
+    Font(GoogleFont("Space Grotesk"), provider, weight = FontWeight.Medium),
+)
+val MonoFont = FontFamily(
+    Font(GoogleFont("JetBrains Mono"), provider, weight = FontWeight.Normal),
+    Font(GoogleFont("JetBrains Mono"), provider, weight = FontWeight.Medium),
+)
 
 val Typography = Typography(
     displayLarge = TextStyle(
@@ -43,16 +58,17 @@ val Typography = Typography(
         lineHeight = 24.sp,
     ),
     labelMedium = TextStyle(
-        fontFamily = MonoFont,
-        fontWeight = FontWeight.Normal,
+        fontFamily = MetaFont,
+        fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 14.sp,
+        letterSpacing = 0.08.sp,
     ),
     labelSmall = TextStyle(
-        fontFamily = MonoFont,
-        fontWeight = FontWeight.Bold,
+        fontFamily = MetaFont,
+        fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 13.sp,
-        letterSpacing = 1.1.sp,
+        letterSpacing = 0.06.sp,
     ),
 )

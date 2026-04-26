@@ -41,6 +41,47 @@ fun documentFor(variant: Variant): ByteArray = when (variant) {
     Variant.CATALOG -> catalogDocument()
 }
 
+fun descriptorFor(variant: Variant): ScreenDescriptor = when (variant) {
+    Variant.BRIEF -> ScreenDescriptor(
+        name = "Brief - Daily",
+        variant = variant.name.lowercase(),
+        widthDp = 390,
+        heightDp = 844,
+        actions = listOf(
+            ActionDescriptor(Actions.READ_FEATURED, "Read featured"),
+            ActionDescriptor(Actions.SAVE_FOR_LATER, "Save for later"),
+        ),
+    )
+    Variant.SPARSE -> ScreenDescriptor(
+        name = "Brief - Sparse",
+        variant = variant.name.lowercase(),
+        widthDp = 390,
+        heightDp = 844,
+        actions = listOf(
+            ActionDescriptor(Actions.CATCH_ME_UP, "Catch me up"),
+        ),
+    )
+    Variant.CATALOG -> ScreenDescriptor(
+        name = "Brief - Catalog",
+        variant = variant.name.lowercase(),
+        widthDp = 390,
+        heightDp = 844,
+        actions = (1..6).map { n -> ActionDescriptor(Actions.navigateItem(n), "Item $n") } +
+            listOf(ActionDescriptor(Actions.REFRESH, "Refresh")),
+    )
+}
+
+fun itemDescriptor(id: Int): ScreenDescriptor = ScreenDescriptor(
+    name = "Brief - Item $id",
+    id = id,
+    widthDp = 390,
+    heightDp = 844,
+    actions = listOf(
+        ActionDescriptor(Actions.MARK_READ, "Mark read"),
+        ActionDescriptor(Actions.OPEN_IN_SOURCE, "Open in source"),
+    ),
+)
+
 private fun render(name: String, body: RemoteComposeContext.() -> Unit): ByteArray {
     val ctx = RemoteComposeContext(
         390,
@@ -75,7 +116,7 @@ fun briefDocument(): ByteArray = render("Brief - Daily") {
             text("BRIEF")
             text("Today")
             text("3 new since yesterday")
-            box(RecordingModifier().fillMaxWidth().height(180f).background(BRIEF_ACCENT))
+            box(RecordingModifier().fillMaxWidth().height(200f).background(BRIEF_ACCENT))
             text("Featured release")
             text("A short summary of the headline release for today.")
             cta("Read featured", Actions.READ_FEATURED)
@@ -102,11 +143,11 @@ fun catalogDocument(): ByteArray = render("Brief - Catalog") {
             text("Catalog")
             repeat(6) { i ->
                 val n = i + 1
-                box(RecordingModifier().fillMaxWidth().height(8f).background(BRIEF_ACCENT))
+                box(RecordingModifier().fillMaxWidth().height(1f).background(BRIEF_ACCENT))
                 box(
                     RecordingModifier()
                         .fillMaxWidth()
-                        .padding(8)
+                        .padding(12)
                         .onClick(HostAction(Actions.navigateItem(n))),
                 ) {
                     column(RecordingModifier().fillMaxWidth()) {

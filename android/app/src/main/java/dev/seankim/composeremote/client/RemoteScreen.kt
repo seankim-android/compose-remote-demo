@@ -27,6 +27,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.remote.player.compose.RemoteDocumentPlayer
@@ -43,7 +44,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.seankim.composeremote.client.ui.theme.DisplayFont
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -155,7 +160,18 @@ fun RemoteScreen(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(current.title) },
+                title = {
+                    Text(
+                        current.title,
+                        fontStyle = FontStyle.Italic,
+                        fontFamily = DisplayFont,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 22.sp,
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
                 navigationIcon = {
                     if (backStack.size > 1) {
                         IconButton(onClick = { pop() }) {
@@ -240,6 +256,11 @@ private fun VariantPicker(
                 selected = v == selected,
                 onClick = { onSelect(v) },
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = variants.size),
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    activeBorderColor = MaterialTheme.colorScheme.primary,
+                ),
             ) {
                 Text(v.label)
             }
@@ -249,6 +270,20 @@ private fun VariantPicker(
 
 @Composable
 private fun InspectorContent(result: FetchResult) {
+    var jsonText by remember { mutableStateOf<String?>(null) }
+    var jsonError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(result.url) {
+        jsonText = null
+        jsonError = null
+        try {
+            val jsonUrl = if (result.url.contains('?')) "${result.url}&format=json" else "${result.url}?format=json"
+            jsonText = withContext(Dispatchers.IO) { URL(jsonUrl).readText() }
+        } catch (e: Exception) {
+            jsonError = e.message ?: e::class.java.simpleName
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -260,11 +295,18 @@ private fun InspectorContent(result: FetchResult) {
         Field("URL", result.url)
         Field("Size", "${result.bytes.size} bytes")
         Field("Round trip", "${result.latencyMs} ms")
-        Text("First 256 bytes (hex)", style = MaterialTheme.typography.labelLarge)
-        Text(
-            text = hexPreview(result.bytes, max = 256),
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-        )
+        Text("Wire payload (JSON)", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        when {
+            jsonError != null -> Text(
+                text = jsonError!!,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            )
+            jsonText != null -> Text(
+                text = jsonText!!,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            )
+            else -> Text("Loading…", style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 
@@ -275,21 +317,6 @@ private fun Field(label: String, value: String) {
         Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }
-
-private fun hexPreview(bytes: ByteArray, max: Int): String {
-    val take = bytes.size.coerceAtMost(max)
-    val builder = StringBuilder(take * 3)
-    for (i in 0 until take) {
-        if (i > 0 && i % 16 == 0) builder.append('\n')
-        else if (i > 0) builder.append(' ')
-        val b = bytes[i].toInt() and 0xFF
-        builder.append(HEX[b ushr 4]).append(HEX[b and 0x0F])
-    }
-    if (bytes.size > take) builder.append("\n…")
-    return builder.toString()
-}
-
-private val HEX = "0123456789abcdef".toCharArray()
 
 @Composable
 private fun RemotePlayer(
