@@ -165,7 +165,7 @@ private fun rounded(r: Float) = RoundedRectShape(r, r, r, r)
 private fun RemoteComposeContext.eyebrow(label: String) = text(
     string = label.uppercase(),
     color = INK_SECONDARY,
-    fontSize = 12f,
+    fontSize = 11f,
     fontWeight = 500f,
     fontFamily = FAM_BODY,
     letterSpacing = 0.08f,
@@ -174,7 +174,7 @@ private fun RemoteComposeContext.eyebrow(label: String) = text(
 private fun RemoteComposeContext.section(label: String) = text(
     string = label,
     color = INK_PRIMARY,
-    fontSize = 14f,
+    fontSize = 13f,
     fontWeight = 500f,
     fontFamily = FAM_BODY,
 )
@@ -182,24 +182,28 @@ private fun RemoteComposeContext.section(label: String) = text(
 private fun RemoteComposeContext.meta(label: String) = text(
     string = label,
     color = INK_SECONDARY,
-    fontSize = 14f,
+    fontSize = 13f,
     fontFamily = FAM_BODY,
 )
 
+// Display family is serif at weight 600 italic. Per-glyph metrics make this
+// read about 1.5x larger than the same numeric fontSize at sans-serif weight
+// 400, so the authored fontSize here is intentionally smaller than what the
+// design spec calls for in sp.
 private fun RemoteComposeContext.headline(label: String) = text(
     string = label,
     color = INK_PRIMARY,
-    fontSize = 28f,
+    fontSize = 14f,
     fontStyle = ITALIC,
     fontWeight = 600f,
     fontFamily = FAM_DISPLAY,
-    lineHeightAdd = 4f,
+    lineHeightAdd = 2f,
 )
 
 private fun RemoteComposeContext.deck(label: String) = text(
     string = label,
     color = INK_SECONDARY,
-    fontSize = 16f,
+    fontSize = 13f,
     fontFamily = FAM_BODY,
     lineHeightAdd = 4f,
 )
@@ -207,7 +211,7 @@ private fun RemoteComposeContext.deck(label: String) = text(
 private fun RemoteComposeContext.bodyParagraph(label: String) = text(
     string = label,
     color = INK_PRIMARY,
-    fontSize = 16f,
+    fontSize = 14f,
     fontFamily = FAM_DISPLAY,
     lineHeightAdd = 6f,
 )
@@ -220,7 +224,7 @@ private fun RemoteComposeContext.primaryCta(label: String, actionId: Int) {
             .fillMaxWidth()
             .background(ACCENT)
             .clip(rounded(8f))
-            .padding(20, 18, 20, 18)
+            .padding(16, 12, 16, 12)
             .onClick(HostAction(actionId)),
         horizontal = BOX_CENTER,
         vertical = BOX_CENTER,
@@ -228,7 +232,7 @@ private fun RemoteComposeContext.primaryCta(label: String, actionId: Int) {
         text(
             string = "$label  ›",
             color = ON_ACCENT,
-            fontSize = 18f,
+            fontSize = 14f,
             fontWeight = 600f,
             fontFamily = FAM_BODY,
             textAlign = ALIGN_CENTER,
@@ -254,7 +258,7 @@ private fun RemoteComposeContext.textCta(
         text(
             string = label,
             color = ACCENT,
-            fontSize = 15f,
+            fontSize = 13f,
             fontWeight = 500f,
             fontFamily = FAM_BODY,
         )
@@ -265,21 +269,21 @@ private fun RemoteComposeContext.hero(label: String) {
     box(
         modifier = RecordingModifier()
             .fillMaxWidth()
-            .height(200f)
+            .height(160f)
             .background(ACCENT)
-            .clip(rounded(12f)),
+            .clip(rounded(10f)),
         horizontal = BOX_START,
         vertical = BOX_BOTTOM,
     ) {
         column(
-            modifier = RecordingModifier().fillMaxWidth().padding(16),
+            modifier = RecordingModifier().fillMaxWidth().padding(14),
             horizontal = BOX_START,
             vertical = BOX_BOTTOM,
         ) {
             text(
                 string = label,
                 color = ON_ACCENT,
-                fontSize = 22f,
+                fontSize = 14f,
                 fontStyle = ITALIC,
                 fontWeight = 600f,
                 fontFamily = FAM_DISPLAY,
@@ -293,8 +297,8 @@ private fun RemoteComposeContext.hero(label: String) {
 private fun pageColumn() = RecordingModifier()
     .fillMaxSize()
     .background(BG)
-    .padding(20, 12, 20, 24)
-    .spacedBy(16f)
+    .padding(16, 8, 16, 16)
+    .spacedBy(12f)
 
 fun briefDocument(viewport: Viewport): ByteArray = render("Brief - Daily", viewport) {
     root {
