@@ -8,7 +8,7 @@ lifecycleRuntimeKtx = "2.6.1"
 activityCompose = "1.8.0"
 kotlin = "2.2.10"
 composeBom = "2024.09.00"
-composeRemote = "1.0.0-alpha08"
+composeRemote = "1.0.0-alpha09"
 
 [libraries]
 compose-remote-core = { group = "androidx.compose.remote", name = "remote-core", version.ref = "composeRemote" }
